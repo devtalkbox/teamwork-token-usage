@@ -12,6 +12,8 @@
  */
 import { readFileSync } from 'node:fs'
 
+export { BUILTIN_PRICING } from './pricing/builtin.ts'
+
 export interface Rates {
   input?: number
   output?: number

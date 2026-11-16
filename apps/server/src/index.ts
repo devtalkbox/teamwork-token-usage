@@ -15,9 +15,12 @@ import {
   aggregateHourly,
   aggregateModels,
   aggregateProjects,
+  BUILTIN_PRICING,
+  collectAll,
   loadBuckets,
   loadPricingFromFile,
   resolveDataDir,
+  resolveDataDirs,
   summarize,
   toRows,
   type ApiEnvelope,
@@ -54,7 +57,8 @@ function pricing(dataDir: string): PricingData {
     pricingCache = { mtimeMs, data }
     return data
   } catch {
-    return pricingCache?.data ?? { exact: {} }
+    // 没有 jusage 的 overlay 时退回内置快照，成本才不会全变 0
+    return pricingCache?.data ?? BUILTIN_PRICING
   }
 }
 
@@ -90,7 +94,7 @@ function route(pathname: string, query: URLSearchParams): { status: number; body
 
   const name = pathname.slice('/functions/'.length)
   const dataDir = resolveDataDir()
-  const { buckets, lastModifiedAt } = loadBuckets(dataDir)
+  const { buckets, lastModifiedAt } = loadBuckets()
   const rows = filterSource(toRows(buckets, pricing(dataDir)), query.get('source'))
   const days = clampDays(query.get('days'))
 
@@ -125,6 +129,7 @@ function route(pathname: string, query: URLSearchParams): { status: number; body
           lastModifiedAt,
           bucketCount: buckets.length,
           dataDir,
+          dataDirs: resolveDataDirs(),
           sources: [...bySource.entries()]
             .map(([source, v]) => ({ source, ...v }))
             .sort((a, b) => b.tokens - a.tokens),
@@ -153,6 +158,21 @@ function serveStatic(req: IncomingMessage, res: ServerResponse, pathname: string
   createReadStream(file).pipe(res)
 }
 
+if (process.env.TTU_SYNC === '1') {
+  const started = Date.now()
+  const result = collectAll({ force: process.env.TTU_FORCE_SYNC === '1' })
+  const parts = Object.entries(result.bySource)
+    .filter(([, v]) => v.files > 0)
+    .map(([name, v]) => `${name} ${v.files} 个文件/${v.buckets} 个桶`)
+  console.log(
+    `采集完成: 扫描 ${result.scanned} 个文件（解析 ${result.parsed}，命中缓存 ${result.skipped}），` +
+      `${result.buckets.length} 个桶，用时 ${Date.now() - started}ms`,
+  )
+  if (parts.length > 0) console.log(`  ${parts.join(' · ')}`)
+  console.log(`  输出: ${result.queueFiles.join(', ') || '（无数据）'}`)
+  if (process.env.TTU_SYNC_ONLY === '1') process.exit(0)
+}
+
 const server = createServer((req, res) => {
   const url = new URL(req.url ?? '/', `http://${HOST}:${PORT}`)
   const matched = route(url.pathname, url.searchParams)
@@ -169,5 +189,5 @@ const server = createServer((req, res) => {
 
 server.listen(PORT, HOST, () => {
   console.log(`Token 看板: http://${HOST}:${PORT}/dashboard`)
-  console.log(`数据目录: ${resolveDataDir()}`)
+  console.log(`数据目录: ${resolveDataDirs().join(' + ')}`)
 })

@@ -1,19 +1,26 @@
 # teamwork-token-usage
 
-本机 AI Agent Token 用量看板。读取 [jusage](https://github.com/juejin-cn/juejin-usage) 已经落盘的用量桶，
-渲染成和 `http://127.0.0.1:8452/dashboard` 同款的面板。
+本机 AI Agent Token 用量看板。**自己扫描本地日志**（DeepSeek Harness / Codex / Claude Code），
+汇总成用量桶后渲染成和 `http://127.0.0.1:8452/dashboard` 同款的面板。
 
-**v1 范围**：纯本地，只读本机数据，不做任何远程上报。团队同步在 v2。
+**范围**：纯本地，只读本机数据，不做任何远程上报。团队同步在 v2。
 
 ## 同事直接用（不需要 clone）
 
 ```bash
-npx -y github:devtalkbox/teamwork-token-usage#v0.3.0 --open
+npx -y github:devtalkbox/teamwork-token-usage#v0.4.0 --open
 ```
 
-会拉起本机看板并打开 <http://127.0.0.1:8460/dashboard>。首次运行会下载仓库（约 0.6MB），之后走 npx 缓存。
+会先扫描本机日志，再拉起看板并打开 <http://127.0.0.1:8460/dashboard>。
+首次运行会下载仓库（约 0.6MB），之后走 npx 缓存。
 
-参数：`--port 8460`、`--host 127.0.0.1`、`--open`。
+参数：`--port 8460`、`--host 127.0.0.1`、`--open`、`--no-sync`（跳过采集）。
+
+只需要采集时：
+
+```bash
+npx -y github:devtalkbox/teamwork-token-usage#v0.4.0 sync
+```
 
 ## 本地开发
 
@@ -36,16 +43,22 @@ pnpm start
 
 ## 数据从哪来
 
-看板本身**不采集**，读的是 jusage 的产物：
+自己扫，不需要装 jusage：
 
-```
-~/.ai-usage/queue/YYYY-MM.jsonl      半小时粒度的用量桶
-~/.ai-usage/pricing-overlay.json     模型价格表（决定成本列）
-```
+| 工具 | 日志位置 | 采集要点 |
+| --- | --- | --- |
+| DeepSeek Harness | `~/.dsh/sessions/**/session.*.jsonl(.zstd)` | 多帧 zstd，需按帧切开逐帧解压 |
+| Codex | `~/.codex/sessions/**/rollout-*.jsonl(.zst)` | `token_usage_record` 是单次量；input 含缓存、output 含 reasoning，要减掉 |
+| Claude Code | `~/.claude/projects/**/*.jsonl` | 同一 message.id 可能流式出现多次，按 id 取最后一条 |
 
-所以先确保本机跑过 jusage（`npx @juejin-opensource/jusage start`），否则页面是空的。
+产出写到 `~/.ttu/queue/YYYY-MM.jsonl`（半小时桶），格式与 jusage 一致。
+老数据兼容：如果本机有 `~/.ai-usage/queue`，会一起读；**同一个 source 以我们自己采集的为准**，
+避免两套数据各算一遍。
 
-换数据目录：`TTU_DATA_DIR=/path/to/data pnpm dev`。
+价格：优先用 `~/.ai-usage/pricing-overlay.json`，没有就退回内置快照
+（`packages/core/src/pricing/builtin.ts`），所以**没装 jusage 也能算出成本**。
+
+换数据目录：`TTU_HOME=/path/to/home`；只看 jusage 的：`TTU_DATA_DIR=/path/to/data`。
 
 > 队列文件是**追加日志**：同一个桶会反复追写（本机实测最多重复 29 次），
 > 所以加载时必须按 `hour_start|source|model|project|collector` 去重取最后一条，

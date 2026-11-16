@@ -1,11 +1,13 @@
 /**
- * 数据加载：直接读 jusage 已经落盘的用量桶。
+ * 数据加载：读用量桶的 jsonl（可能来自我们自己采集，也可能来自 jusage）。
  *
- * Phase 1 刻意不自己采集 —— 本机只要有 jusage 在跑（或跑过一次），
- * `~/.ai-usage/queue/*.jsonl` 就是最新的。这样省掉了全部 parser 工作，
- * 先把「数据 → API → 看板」这条链跑通；Phase 2 再换成自己同步。
+ * v1 时只有一个数据源；现在有两个：
+ *   ~/.ai-usage/queue   jusage 写的（历史兼容）
+ *   ~/.ttu/queue        我们自己采集的（优先）
  *
- * 读盘按 (mtime, size) 做缓存，队列文件没变就不重复解析。
+ * 两个目录一起读，按 key 去重，后读到的覆盖先读到的 —— 所以自己的数据放最后。
+ *
+ * 读盘按 (mtime, size) 做缓存，文件没变就不重复解析。
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -14,9 +16,27 @@ import type { UsageBucket } from './types.ts'
 
 export const DEFAULT_DATA_DIR = join(homedir(), '.ai-usage')
 
+/** jusage 的数据目录（历史数据 + 定价表所在处） */
 export function resolveDataDir(): string {
   const override = process.env.TTU_DATA_DIR?.trim()
   return override ? override.replace(/^~/, homedir()) : DEFAULT_DATA_DIR
+}
+
+/** 我们自己的数据目录 */
+export function resolveOwnDir(): string {
+  const override = process.env.TTU_HOME?.trim()
+  return override ? override.replace(/^~/, homedir()) : join(homedir(), '.ttu')
+}
+
+/** 按优先级返回所有数据目录：先 jusage，后自己的（后者覆盖前者） */
+export function resolveDataDirs(): string[] {
+  const dirs: string[] = []
+  const jusage = resolveDataDir()
+  if (existsSync(jusage)) dirs.push(jusage)
+  const own = resolveOwnDir()
+  if (existsSync(own)) dirs.push(own)
+  if (dirs.length === 0) dirs.push(jusage)
+  return dirs
 }
 
 interface CacheEntry {
@@ -27,12 +47,8 @@ interface CacheEntry {
 
 let cache: CacheEntry | null = null
 
-function queueDir(dataDir: string): string {
-  return join(dataDir, 'queue')
-}
-
 function listQueueFiles(dataDir: string): string[] {
-  const dir = queueDir(dataDir)
+  const dir = join(dataDir, 'queue')
   if (!existsSync(dir)) return []
   return readdirSync(dir)
     .filter((name) => name.endsWith('.jsonl'))
@@ -93,22 +109,38 @@ export function bucketKey(b: UsageBucket): string {
 export interface LoadResult {
   buckets: UsageBucket[]
   lastModifiedAt: string | null
-  dataDir: string
+  dataDirs: string[]
 }
 
-export function loadBuckets(dataDir = resolveDataDir()): LoadResult {
-  const files = listQueueFiles(dataDir)
+export function loadBuckets(dirs: string[] = resolveDataDirs()): LoadResult {
+  const files = dirs.flatMap(listQueueFiles)
   const { signature, lastModifiedAt } = signatureOf(files)
 
   if (cache && cache.signature === signature) {
-    return { buckets: cache.buckets, lastModifiedAt: cache.lastModifiedAt, dataDir }
+    return { buckets: cache.buckets, lastModifiedAt: cache.lastModifiedAt, dataDirs: dirs }
   }
 
-  const buckets = new Map<string, UsageBucket>()
-  for (const file of files) parseFile(file, buckets)
-  const list = [...buckets.values()]
+  // 按目录顺序读；后面的目录（我们自己的采集）对同一个 source 拥有最终解释权。
+  // 否则同一个 source 会被两套数据各算一遍（实测 codex 会多出 60%）。
+  const perDir = dirs.map((dir) => {
+    const map = new Map<string, UsageBucket>()
+    for (const file of listQueueFiles(dir)) parseFile(file, map)
+    return map
+  })
+
+  const ownSources = new Set([...perDir.at(-1)!.values()].map((b) => b.source))
+  const merged = new Map<string, UsageBucket>()
+  perDir.forEach((map, index) => {
+    const isOwn = index === perDir.length - 1
+    for (const [key, bucket] of map) {
+      if (!isOwn && ownSources.has(bucket.source)) continue
+      merged.set(key, bucket)
+    }
+  })
+
+  const list = [...merged.values()]
   cache = { signature, buckets: list, lastModifiedAt }
-  return { buckets: list, lastModifiedAt, dataDir }
+  return { buckets: list, lastModifiedAt, dataDirs: dirs }
 }
 
 /** 测试/热重载用 */

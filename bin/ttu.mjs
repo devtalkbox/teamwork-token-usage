@@ -15,7 +15,9 @@ import { fileURLToPath } from 'node:url'
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const BUNDLE = join(ROOT, 'bundle')
 
-const args = process.argv.slice(2)
+const raw = process.argv.slice(2)
+const command = raw[0] && !raw[0].startsWith('-') ? raw[0] : 'serve'
+const args = raw[0] === command && !raw[0].startsWith('-') ? raw.slice(1) : raw
 
 function flag(name, fallback) {
   const index = args.indexOf(`--${name}`)
@@ -25,18 +27,28 @@ function flag(name, fallback) {
   return fallback
 }
 
-if (args.includes('--help') || args.includes('-h')) {
+if (args.includes('--help') || args.includes('-h') || command === 'help') {
   console.log(`ttu —— 本机 Token 用量看板
 
 用法:
-  ttu [--port 8460] [--host 127.0.0.1] [--open]
+  ttu [serve] [--port 8460] [--host 127.0.0.1] [--open] [--no-sync]
+      采集一次后启动看板
+
+  ttu sync [--force]
+      只采集，不启动服务
 
 选项:
-  --port    监听端口，默认 8460
-  --host    监听地址，默认 127.0.0.1
-  --open    启动后自动打开浏览器
+  --port     监听端口，默认 8460
+  --host     监听地址，默认 127.0.0.1
+  --open     启动后自动打开浏览器
+  --no-sync  启动时不采集，只读已有数据
+  --force    忽略文件指纹，强制重扫
 
-数据来源: ~/.ai-usage/queue/*.jsonl（由 jusage 采集）
+数据来源（自动扫描，无需 jusage）:
+  ~/.dsh/sessions         DeepSeek Harness
+  ~/.codex/sessions       Codex
+  ~/.claude/projects      Claude Code
+  产出写到 ~/.ttu/queue/*.jsonl
 `)
   process.exit(0)
 }
@@ -50,6 +62,14 @@ const port = Number(flag('port', process.env.PORT ?? 8460))
 process.env.PORT = String(port)
 process.env.HOST = flag('host', process.env.HOST ?? '127.0.0.1')
 process.env.TTU_WEB_DIST = join(BUNDLE, 'web')
+
+if (command === 'sync') {
+  process.env.TTU_SYNC = '1'
+  process.env.TTU_SYNC_ONLY = '1'
+  if (args.includes('--force')) process.env.TTU_FORCE_SYNC = '1'
+} else if (command === 'serve' && !args.includes('--no-sync')) {
+  process.env.TTU_SYNC = '1'
+}
 
 if (args.includes('--open')) {
   setTimeout(() => {

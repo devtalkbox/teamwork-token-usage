@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.4.0
+
+### Added
+
+- **自带采集器**：直接读本地日志，不再依赖 jusage
+  - DeepSeek Harness（多帧 zstd 需自行按帧解压）
+  - Codex（`token_usage_record`，input 含缓存、output 含 reasoning，已按口径扣减）
+  - Claude Code（按 message.id 去重，避免流式重复计数）
+- `ttu sync` 只采集；`ttu` 默认「采集后启动」，`--no-sync` 可跳过
+- 按文件指纹（inode/size/mtime）缓存解析结果，重复运行只扫变更文件
+- 内置定价表快照，未安装 jusage 也能算成本
+- 同一 source 优先用自己采集的数据，避免与 jusage 队列重复计算
+
+### Fixed
+
+- 同一 (小时, 模型, 项目) 被多个会话分片写入时未合并，导致统计少 30%
+
 ## v0.2.0
 
 ### Added
