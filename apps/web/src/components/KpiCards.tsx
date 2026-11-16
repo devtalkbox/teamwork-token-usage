@@ -1,4 +1,5 @@
-import type { UsageSummary, DailyPoint } from '@ttu/core'
+import type { UsageSummary } from '@ttu/core'
+import type { ChartPoint } from '../chartData'
 import { formatTokens, formatUsd } from '../format'
 
 type Tone = 'green' | 'blue' | 'amber' | 'red'
@@ -71,7 +72,7 @@ function KpiCard({
   )
 }
 
-const sum = (list: DailyPoint[], pick: (d: DailyPoint) => number) => list.reduce((s, d) => s + pick(d), 0)
+const sum = (list: ChartPoint[], pick: (d: ChartPoint) => number) => list.reduce((s, d) => s + pick(d), 0)
 
 export function KpiCards({
   summary,
@@ -79,8 +80,8 @@ export function KpiCards({
   previous,
 }: {
   summary: UsageSummary
-  current: DailyPoint[]
-  previous: DailyPoint[]
+  current: ChartPoint[]
+  previous: ChartPoint[]
 }) {
   const cur = {
     cost: sum(current, (d) => d.costUsd),

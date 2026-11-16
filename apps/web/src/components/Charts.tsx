@@ -9,8 +9,8 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import type { DailyPoint } from '@ttu/core'
-import { formatTokens, formatUsd, shortDate } from '../format'
+import type { ChartPoint } from '../chartData'
+import { formatTokens, formatUsd } from '../format'
 
 const AXIS = { fontSize: 11, fill: '#8b95a7' }
 const TOOLTIP = { borderRadius: 10, border: '1px solid #e6eaf2', fontSize: 12 }
@@ -40,10 +40,10 @@ export function Segmented<T extends string>({
 }
 
 /** 按 source 摊平，用于「详细」模式的堆叠面积 */
-function pivotBySource(data: DailyPoint[]): Array<Record<string, number | string>> {
+function pivotBySource(data: ChartPoint[]): Array<Record<string, number | string>> {
   const sources = [...new Set(data.flatMap((d) => d.sources.map((s) => s.source)))]
   return data.map((point) => {
-    const row: Record<string, number | string> = { date: point.date }
+    const row: Record<string, number | string> = { label: point.label }
     for (const source of sources) {
       row[source] = point.sources.find((s) => s.source === source)?.tokens ?? 0
     }
@@ -59,7 +59,7 @@ const SOURCE_COLORS: Record<string, string> = {
 }
 const colorOf = (source: string) => SOURCE_COLORS[source] ?? '#94a3b8'
 
-export function TrendChart({ data, mode }: { data: DailyPoint[]; mode: 'all' | 'detail' }) {
+export function TrendChart({ data, mode }: { data: ChartPoint[]; mode: 'all' | 'detail' }) {
   if (mode === 'detail') {
     const rows = pivotBySource(data)
     const sources = [...new Set(data.flatMap((d) => d.sources.map((s) => s.source)))]
@@ -67,14 +67,7 @@ export function TrendChart({ data, mode }: { data: DailyPoint[]; mode: 'all' | '
       <ResponsiveContainer width="100%" height={248}>
         <AreaChart data={rows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
           <CartesianGrid stroke="#eef1f6" vertical={false} />
-          <XAxis
-            dataKey="date"
-            tickFormatter={shortDate}
-            tick={AXIS}
-            axisLine={false}
-            tickLine={false}
-            minTickGap={28}
-          />
+          <XAxis dataKey="label" tick={AXIS} axisLine={false} tickLine={false} minTickGap={24} />
           <YAxis tickFormatter={formatTokens} tick={AXIS} axisLine={false} tickLine={false} width={48} />
           <Tooltip formatter={(value: number, name: string) => [formatTokens(value), name]} contentStyle={TOOLTIP} />
           {sources.map((source) => (
@@ -87,6 +80,7 @@ export function TrendChart({ data, mode }: { data: DailyPoint[]; mode: 'all' | '
               fill={colorOf(source)}
               fillOpacity={0.55}
               dot={false}
+              isAnimationActive={false}
             />
           ))}
         </AreaChart>
@@ -104,14 +98,7 @@ export function TrendChart({ data, mode }: { data: DailyPoint[]; mode: 'all' | '
           </linearGradient>
         </defs>
         <CartesianGrid stroke="#eef1f6" vertical={false} />
-        <XAxis
-          dataKey="date"
-          tickFormatter={shortDate}
-          tick={AXIS}
-          axisLine={false}
-          tickLine={false}
-          minTickGap={28}
-        />
+        <XAxis dataKey="label" tick={AXIS} axisLine={false} tickLine={false} minTickGap={24} />
         <YAxis tickFormatter={formatTokens} tick={AXIS} axisLine={false} tickLine={false} width={48} />
         <Tooltip formatter={(value: number) => [formatTokens(value), 'Token']} contentStyle={TOOLTIP} />
         <Area
@@ -120,26 +107,20 @@ export function TrendChart({ data, mode }: { data: DailyPoint[]; mode: 'all' | '
           stroke="#2f6fed"
           strokeWidth={2}
           fill="url(#trendFill)"
-          dot={false}
+          dot={data.length === 1}
+          isAnimationActive={false}
         />
       </AreaChart>
     </ResponsiveContainer>
   )
 }
 
-export function DailyChart({ data, mode }: { data: DailyPoint[]; mode: 'token' | 'cost' }) {
+export function DailyChart({ data, mode }: { data: ChartPoint[]; mode: 'token' | 'cost' }) {
   return (
     <ResponsiveContainer width="100%" height={248}>
-      <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} barCategoryGap="34%">
+      <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} barCategoryGap="26%">
         <CartesianGrid stroke="#eef1f6" vertical={false} />
-        <XAxis
-          dataKey="date"
-          tickFormatter={shortDate}
-          tick={AXIS}
-          axisLine={false}
-          tickLine={false}
-          minTickGap={24}
-        />
+        <XAxis dataKey="label" tick={AXIS} axisLine={false} tickLine={false} minTickGap={24} />
         <YAxis
           tickFormatter={mode === 'cost' ? (v: number) => `$${v.toFixed(0)}` : formatTokens}
           tick={AXIS}

@@ -1,7 +1,7 @@
 /**
  * 前端只认这一组 API 契约。v2 换成团队服务端时，改 VITE_API_BASE 就够了。
  */
-import type { DailyPoint, ModelSlice, ProjectSlice, UsageSummary } from '@ttu/core'
+import type { DailyPoint, HourlyPoint, ModelSlice, ProjectSlice, UsageSummary } from '@ttu/core'
 
 interface Envelope<T> {
   success: boolean
@@ -33,6 +33,9 @@ export const fetchSummary = (source?: string) =>
 
 export const fetchDaily = (days: number, source?: string) =>
   get<{ days: DailyPoint[] }>(`/functions/tud-usage-daily${qs({ days, source })}`).then((r) => r.days)
+
+export const fetchHourly = (days: number, source?: string) =>
+  get<{ hours: HourlyPoint[] }>(`/functions/tud-usage-hourly${qs({ days, source })}`).then((r) => r.hours)
 
 export const fetchModels = (days: number, source?: string) =>
   get<{ models: ModelSlice[] }>(`/functions/tud-usage-model-breakdown${qs({ days, source })}`).then(
