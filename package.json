@@ -1,6 +1,6 @@
 {
   "name": "teamwork-token-usage",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "团队 AI Token 用量看板：先个人、后团队",
@@ -9,9 +9,21 @@
     "dev:server": "pnpm --filter @ttu/server dev",
     "dev:web": "pnpm --filter @ttu/web dev",
     "build": "pnpm --filter @ttu/web build",
+    "bundle": "pnpm build && node scripts/build-bundle.mjs",
     "start": "pnpm --filter @ttu/server start"
   },
   "engines": {
     "node": ">=20"
+  },
+  "bin": {
+    "ttu": "./bin/ttu.mjs"
+  },
+  "files": [
+    "bin",
+    "bundle",
+    "README.md"
+  ],
+  "devDependencies": {
+    "esbuild": "^0.24.0"
   }
 }

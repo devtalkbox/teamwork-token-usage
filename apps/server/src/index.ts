@@ -26,7 +26,9 @@ import {
 } from '@ttu/core'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
-const WEB_DIST = resolve(__dirname, '../../web/dist')
+const WEB_DIST = process.env.TTU_WEB_DIST
+  ? resolve(process.env.TTU_WEB_DIST)
+  : resolve(__dirname, '../../web/dist')
 const PORT = Number(process.env.PORT ?? 8460)
 const HOST = process.env.HOST ?? '127.0.0.1'
 

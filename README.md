@@ -5,7 +5,17 @@
 
 **v1 范围**：纯本地，只读本机数据，不做任何远程上报。团队同步在 v2。
 
-## 快速开始
+## 同事直接用（不需要 clone）
+
+```bash
+npx -y github:devtalkbox/teamwork-token-usage#v0.3.0 --open
+```
+
+会拉起本机看板并打开 <http://127.0.0.1:8460/dashboard>。首次运行会下载仓库（约 0.6MB），之后走 npx 缓存。
+
+参数：`--port 8460`、`--host 127.0.0.1`、`--open`。
+
+## 本地开发
 
 ```bash
 pnpm install
