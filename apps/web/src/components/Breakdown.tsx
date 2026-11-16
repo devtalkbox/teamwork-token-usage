@@ -127,6 +127,7 @@ export function ProjectBreakdown({
 
               <div className="big-row__bar">
                 <div className="stack">
+                  <div className="stack__fill" style={{ width: `${Math.max(project.pct, 0.4)}%` }}>
                   {segments.length === 0 && <div className="seg" style={{ flexGrow: 1, background: '#eef1f6' }} />}
                   {segments.map((seg) => {
                     const color = modelColors[seg.model] ?? '#b7c6de'
@@ -153,6 +154,7 @@ export function ProjectBreakdown({
                       </div>
                     )
                   })}
+                  </div>
                 </div>
               </div>
 
