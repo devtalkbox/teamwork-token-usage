@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.6.0
+
+### Changed
+
+- `pnpm dev` 启动时先采集一次（`TTU_SYNC=1`），开发时看到的就是最新数据
+
 ## v0.5.1
 
 ### Changed

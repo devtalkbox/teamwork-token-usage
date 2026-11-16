@@ -1,11 +1,11 @@
 {
   "name": "teamwork-token-usage",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "private": true,
   "type": "module",
   "description": "团队 AI Token 用量看板：先个人、后团队",
   "scripts": {
-    "dev": "pnpm --parallel --filter @ttu/server --filter @ttu/web dev",
+    "dev": "TTU_SYNC=1 pnpm --parallel --filter @ttu/server --filter @ttu/web dev",
     "dev:server": "pnpm --filter @ttu/server dev",
     "dev:web": "pnpm --filter @ttu/web dev",
     "build": "pnpm --filter @ttu/web build",
