@@ -1,0 +1,10 @@
+packages:
+  - apps/*
+  - packages/*
+
+# esbuild 需要跑 postinstall 落二进制，pnpm 默认拦掉脚本
+allowBuilds:
+  esbuild: true
+
+onlyBuiltDependencies:
+  - esbuild
