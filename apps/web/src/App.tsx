@@ -246,10 +246,6 @@ export default function App() {
           </span>
         )}
         <span className="footer__sep">·</span>
-        <span>
-          数据来自 <code>~/.ai-usage/queue/*.jsonl</code>
-        </span>
-        <span className="footer__sep">·</span>
         <span>{rangeLabel}</span>
       </footer>
     </div>

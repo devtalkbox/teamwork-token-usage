@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.5.1
+
+### Changed
+
+- 去掉底部「数据来自 ~/.ai-usage/queue」的提示
+
 ## v0.5.0
 
 ### Added
