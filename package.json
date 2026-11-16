@@ -1,6 +1,6 @@
 {
   "name": "teamwork-token-usage",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "团队 AI Token 用量看板：先个人、后团队",
