@@ -1,9 +1,9 @@
 // 由 scripts/build-bundle.mjs 生成，勿手改。源码见 apps/server 与 packages/core。
 
 // apps/server/src/index.ts
-import { createReadStream, existsSync as existsSync3, statSync as statSync4 } from "node:fs";
+import { createReadStream, existsSync as existsSync4, statSync as statSync4 } from "node:fs";
 import { createServer } from "node:http";
-import { extname, join as join7, normalize as normalize2, resolve } from "node:path";
+import { extname, join as join9, normalize as normalize2, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // packages/core/src/time.ts
@@ -410,9 +410,9 @@ function aggregateProjects(rows, days) {
 
 // packages/core/src/collect/index.ts
 import { createHash } from "node:crypto";
-import { existsSync as existsSync2, mkdirSync, readdirSync as readdirSync3, readFileSync as readFileSync4, rmSync, statSync as statSync3, writeFileSync } from "node:fs";
-import { homedir as homedir5 } from "node:os";
-import { join as join6 } from "node:path";
+import { existsSync as existsSync3, mkdirSync, readdirSync as readdirSync3, readFileSync as readFileSync4, rmSync as rmSync2, statSync as statSync3, writeFileSync } from "node:fs";
+import { homedir as homedir7 } from "node:os";
+import { join as join8 } from "node:path";
 
 // packages/core/src/collect/claude.ts
 import { homedir as homedir2 } from "node:os";
@@ -714,19 +714,332 @@ function parseFile4(file) {
   return [...buckets.values()];
 }
 
+// packages/core/src/collect/kimi.ts
+import { homedir as homedir5 } from "node:os";
+import { join as join6 } from "node:path";
+var SOURCE4 = "kimi";
+function kimiHome() {
+  const override = process.env.KIMI_CODE_HOME?.trim();
+  return override ? override.replace(/^~/, homedir5()) : join6(homedir5(), ".kimi-code");
+}
+function listFiles4(home = kimiHome()) {
+  return walkFiles(join6(home, "sessions"), (name) => name === "wire.jsonl", 8);
+}
+function normalizeUsage(usage) {
+  if (usage.inputOther != null) {
+    return {
+      input: toNonNeg(usage.inputOther),
+      cached: toNonNeg(usage.inputCacheRead),
+      cacheWrite: toNonNeg(usage.inputCacheCreation),
+      output: toNonNeg(usage.output)
+    };
+  }
+  if (usage.cache_read_input_tokens != null) {
+    return {
+      input: toNonNeg(usage.input_tokens),
+      cached: toNonNeg(usage.cache_read_input_tokens),
+      cacheWrite: toNonNeg(usage.cache_creation_input_tokens),
+      output: toNonNeg(usage.output_tokens)
+    };
+  }
+  const cached = toNonNeg(usage.input_tokens_details?.cached_tokens);
+  return {
+    input: Math.max(0, toNonNeg(usage.input_tokens) - cached),
+    cached,
+    cacheWrite: toNonNeg(usage.cache_creation_input_tokens),
+    output: toNonNeg(usage.output_tokens)
+  };
+}
+function projectFromPath(file) {
+  const segments = file.split("/");
+  const wd = segments.find((s) => /^wd_.+_[0-9a-f]+$/i.test(s));
+  if (wd) {
+    const match = /^wd_(.+)_[0-9a-f]+$/i.exec(wd);
+    if (match?.[1]) return match[1];
+  }
+  const sessionsIndex = segments.lastIndexOf("sessions");
+  return sessionsIndex >= 0 ? segments[sessionsIndex + 1] ?? "unknown" : "unknown";
+}
+function parseFile5(file) {
+  const buckets = /* @__PURE__ */ new Map();
+  const seen = /* @__PURE__ */ new Set();
+  const project = projectFromPath(file);
+  let model = "kimi";
+  for (const line of readLogText(file).split("\n")) {
+    const entry = parseJsonLine(line);
+    if (!entry) continue;
+    if (entry.type === "config.update") {
+      const alias = entry.modelAlias;
+      if (typeof alias === "string" && alias.trim()) {
+        model = alias.includes("/") ? alias.split("/").pop() ?? alias : alias;
+      }
+      continue;
+    }
+    const event = entry.type === "context.append_loop_event" && entry.event && typeof entry.event === "object" ? entry.event : entry;
+    if (event.type !== "step.end") continue;
+    const usage = event.usage;
+    if (!usage) continue;
+    const uuid = typeof event.uuid === "string" ? event.uuid : null;
+    if (uuid && seen.has(uuid)) continue;
+    if (uuid) seen.add(uuid);
+    const ms = entry.time ?? event.time;
+    const hourStart = toHalfHourStart(typeof ms === "number" ? ms : String(ms ?? ""));
+    if (!hourStart) continue;
+    const { input, cached, cacheWrite, output } = normalizeUsage(usage);
+    if (input + cached + cacheWrite + output === 0) continue;
+    const key = `${hourStart}|${model}|${project}`;
+    const bucket = buckets.get(key) ?? {
+      hour_start: hourStart,
+      source: SOURCE4,
+      model,
+      project,
+      collector: SOURCE4,
+      input_tokens: 0,
+      output_tokens: 0,
+      cached_input_tokens: 0,
+      cache_creation_input_tokens: 0,
+      reasoning_output_tokens: 0,
+      total_tokens: 0,
+      conversation_count: 0
+    };
+    bucket.input_tokens += input;
+    bucket.output_tokens += output;
+    bucket.cached_input_tokens += cached;
+    bucket.cache_creation_input_tokens += cacheWrite;
+    bucket.total_tokens += input + cached + cacheWrite + output;
+    bucket.conversation_count += 1;
+    buckets.set(key, bucket);
+  }
+  return [...buckets.values()];
+}
+
+// packages/core/src/collect/zcode.ts
+import { copyFileSync, existsSync as existsSync2, mkdtempSync, rmSync } from "node:fs";
+import { createRequire } from "node:module";
+import { homedir as homedir6, tmpdir } from "node:os";
+import { basename as basename2, join as join7 } from "node:path";
+var SOURCE5 = "zcode";
+var require2 = createRequire(import.meta.url);
+function zcodeHome() {
+  const override = process.env.ZCODE_HOME?.trim();
+  return override ? override.replace(/^~/, homedir6()) : join7(homedir6(), ".zcode");
+}
+function dbPath(home = zcodeHome()) {
+  return join7(home, "cli", "db", "db.sqlite");
+}
+function listFiles5(home = zcodeHome()) {
+  const file = dbPath(home);
+  return existsSync2(file) ? [file] : [];
+}
+function loadSqlite() {
+  try {
+    return require2("node:sqlite");
+  } catch (error) {
+    if (process.env.TTU_DEBUG) console.error("[zcode] \u52A0\u8F7D node:sqlite \u5931\u8D25:", error);
+    return null;
+  }
+}
+function withDb(file, fn) {
+  const sqlite = loadSqlite();
+  if (!sqlite || !existsSync2(file)) return null;
+  const attempt = (path) => {
+    let db;
+    try {
+      db = new sqlite.DatabaseSync(path, { readOnly: true });
+      return fn(db);
+    } catch (error) {
+      if (process.env.TTU_DEBUG) console.error("[zcode] \u8BFB\u53D6\u5931\u8D25:", error);
+      return null;
+    } finally {
+      try {
+        db?.close();
+      } catch {
+      }
+    }
+  };
+  const direct = attempt(file);
+  if (direct != null) return direct;
+  const tmpDir = mkdtempSync(join7(tmpdir(), "ttu-zcode-"));
+  try {
+    const copy = join7(tmpDir, "db.sqlite");
+    copyFileSync(file, copy);
+    return attempt(copy);
+  } catch {
+    return null;
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
+function tableExists(db, name) {
+  try {
+    const rows = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").all(name);
+    return rows.length > 0;
+  } catch {
+    return false;
+  }
+}
+function toIso(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const ms = value > 1e12 ? value : value * 1e3;
+    return new Date(ms).toISOString();
+  }
+  if (typeof value === "string" && value.trim()) {
+    const asNumber = Number(value);
+    if (Number.isFinite(asNumber) && /^\d+$/.test(value.trim())) {
+      const ms = asNumber > 1e12 ? asNumber : asNumber * 1e3;
+      return new Date(ms).toISOString();
+    }
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? new Date(parsed).toISOString() : null;
+  }
+  return null;
+}
+function projectOf(root) {
+  if (typeof root !== "string" || !root.trim()) return "unknown";
+  return basename2(root.trim()) || "unknown";
+}
+function totalsFromTokens(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  let tokens;
+  try {
+    tokens = typeof raw === "string" ? JSON.parse(raw) : raw;
+  } catch {
+    return null;
+  }
+  const cache2 = tokens.cache ?? {};
+  const totals = {
+    input: toNonNeg(tokens.input ?? tokens.input_tokens),
+    cached: toNonNeg(cache2.read ?? tokens.cache_read_input_tokens),
+    cacheWrite: toNonNeg(cache2.write ?? tokens.cache_creation_input_tokens),
+    output: toNonNeg(tokens.output ?? tokens.output_tokens),
+    reasoning: toNonNeg(tokens.reasoning ?? tokens.reasoning_output_tokens)
+  };
+  return totals.input + totals.cached + totals.cacheWrite + totals.output + totals.reasoning === 0 ? null : totals;
+}
+function parseFromUsageTable(db) {
+  const rows = db.prepare(
+    `SELECT
+         u.id AS id,
+         u.model_id AS model,
+         u.started_at AS startedAt,
+         u.input_tokens AS inputTokens,
+         u.output_tokens AS outputTokens,
+         u.reasoning_tokens AS reasoningTokens,
+         u.cache_creation_input_tokens AS cacheWrite,
+         u.cache_read_input_tokens AS cacheRead,
+         u.computed_total_tokens AS total,
+         json_extract(m.data, '$.path.root') AS rootPath
+       FROM model_usage u
+       LEFT JOIN message m ON m.id = u.assistant_message_id
+       WHERE u.computed_total_tokens > 0`
+  ).all();
+  const out = [];
+  for (const row of rows) {
+    const hourStart = toHalfHourStart(toIso(row.startedAt));
+    if (!hourStart) continue;
+    const totals = {
+      input: toNonNeg(row.inputTokens),
+      cached: toNonNeg(row.cacheRead),
+      cacheWrite: toNonNeg(row.cacheWrite),
+      output: toNonNeg(row.outputTokens),
+      reasoning: toNonNeg(row.reasoningTokens)
+    };
+    if (totals.input + totals.cached + totals.cacheWrite + totals.output + totals.reasoning === 0) continue;
+    out.push({
+      id: String(row.id ?? `${hourStart}-${out.length}`),
+      model: typeof row.model === "string" && row.model ? row.model : "glm",
+      project: projectOf(row.rootPath),
+      hourStart,
+      totals
+    });
+  }
+  return out;
+}
+function parseFromMessageTable(db) {
+  const rows = db.prepare(
+    `SELECT
+         id AS id,
+         json_extract(data, '$.time.created') AS created,
+         json_extract(data, '$.modelID') AS modelID,
+         json_extract(data, '$.model') AS model,
+         json_extract(data, '$.tokens') AS tokens,
+         json_extract(data, '$.path.root') AS rootPath
+       FROM message
+       WHERE json_extract(data, '$.role') = 'assistant'`
+  ).all();
+  const out = [];
+  for (const row of rows) {
+    const hourStart = toHalfHourStart(toIso(row.created));
+    if (!hourStart) continue;
+    const totals = totalsFromTokens(row.tokens);
+    if (!totals) continue;
+    const model = typeof row.modelID === "string" && row.modelID ? row.modelID : typeof row.model === "string" && row.model ? row.model : "glm";
+    out.push({
+      id: String(row.id ?? `${hourStart}-${out.length}`),
+      model,
+      project: projectOf(row.rootPath),
+      hourStart,
+      totals
+    });
+  }
+  return out;
+}
+function parseFile6(file) {
+  const rows = withDb(file, (db) => {
+    if (tableExists(db, "model_usage")) {
+      const fromUsage = parseFromUsageTable(db);
+      if (fromUsage.length > 0) return fromUsage;
+    }
+    return tableExists(db, "message") ? parseFromMessageTable(db) : [];
+  });
+  if (!rows) return [];
+  const buckets = /* @__PURE__ */ new Map();
+  const seen = /* @__PURE__ */ new Set();
+  for (const row of rows) {
+    if (seen.has(row.id)) continue;
+    seen.add(row.id);
+    const key = `${row.hourStart}|${row.model}|${row.project}`;
+    const bucket = buckets.get(key) ?? {
+      hour_start: row.hourStart,
+      source: SOURCE5,
+      model: row.model,
+      project: row.project,
+      collector: SOURCE5,
+      input_tokens: 0,
+      output_tokens: 0,
+      cached_input_tokens: 0,
+      cache_creation_input_tokens: 0,
+      reasoning_output_tokens: 0,
+      total_tokens: 0,
+      conversation_count: 0
+    };
+    bucket.input_tokens += row.totals.input;
+    bucket.output_tokens += row.totals.output;
+    bucket.cached_input_tokens += row.totals.cached;
+    bucket.cache_creation_input_tokens += row.totals.cacheWrite;
+    bucket.reasoning_output_tokens += row.totals.reasoning;
+    bucket.total_tokens += row.totals.input + row.totals.cached + row.totals.cacheWrite + row.totals.output + row.totals.reasoning;
+    bucket.conversation_count += 1;
+    buckets.set(key, bucket);
+  }
+  return [...buckets.values()];
+}
+
 // packages/core/src/collect/index.ts
 var SOURCES = [
   { name: SOURCE3, list: listFiles3, parse: parseFile4 },
   { name: SOURCE2, list: listFiles2, parse: parseFile3 },
-  { name: SOURCE, list: listFiles, parse: parseFile2 }
+  { name: SOURCE, list: listFiles, parse: parseFile2 },
+  { name: SOURCE4, list: listFiles4, parse: parseFile5 },
+  { name: SOURCE5, list: listFiles5, parse: parseFile6 }
 ];
 function collectHome() {
   const override = process.env.TTU_HOME?.trim();
-  return override ? override.replace(/^~/, homedir5()) : join6(homedir5(), ".ttu");
+  return override ? override.replace(/^~/, homedir7()) : join8(homedir7(), ".ttu");
 }
 function cachePath(home, file) {
   const hash = createHash("sha1").update(file).digest("hex").slice(0, 16);
-  return join6(home, "collect", `${hash}.json`);
+  return join8(home, "collect", `${hash}.json`);
 }
 function readCache(file) {
   try {
@@ -740,13 +1053,15 @@ function tokensOf(bucket) {
 }
 function collectAll(options = {}) {
   const home = collectHome();
-  const cacheDir = join6(home, "collect");
+  const cacheDir = join8(home, "collect");
   mkdirSync(cacheDir, { recursive: true });
   const all = [];
   const bySource = {};
   let scanned = 0;
   let parsed = 0;
   let skipped = 0;
+  let failed = 0;
+  let firstError = null;
   for (const source of SOURCES) {
     let files = [];
     try {
@@ -754,7 +1069,7 @@ function collectAll(options = {}) {
     } catch {
       files = [];
     }
-    const stat = { files: 0, buckets: 0, tokens: 0 };
+    const stat = { files: 0, buckets: 0, tokens: 0, failed: 0 };
     for (const file of files) {
       scanned += 1;
       let info;
@@ -772,7 +1087,10 @@ function collectAll(options = {}) {
       } else {
         try {
           buckets = source.parse(file);
-        } catch {
+        } catch (error) {
+          failed += 1;
+          stat.failed += 1;
+          if (!firstError) firstError = error instanceof Error ? error.message : String(error);
           continue;
         }
         parsed += 1;
@@ -792,7 +1110,7 @@ function collectAll(options = {}) {
   }
   const queueFiles = writeQueue(home, mergeBuckets(all));
   pruneCache(cacheDir, scanned);
-  return { scanned, parsed, skipped, buckets: all, bySource, queueFiles, home };
+  return { scanned, parsed, skipped, failed, firstError, buckets: all, bySource, queueFiles, home };
 }
 function mergeBuckets(list) {
   const merged = /* @__PURE__ */ new Map();
@@ -814,7 +1132,7 @@ function mergeBuckets(list) {
   return [...merged.values()];
 }
 function writeQueue(home, buckets) {
-  const dir = join6(home, "queue");
+  const dir = join8(home, "queue");
   mkdirSync(dir, { recursive: true });
   const months = /* @__PURE__ */ new Map();
   for (const bucket of buckets) {
@@ -826,31 +1144,31 @@ function writeQueue(home, buckets) {
   const written = [];
   for (const [month, list] of months) {
     list.sort((a, b) => a.hour_start.localeCompare(b.hour_start));
-    const file = join6(dir, `${month}.jsonl`);
+    const file = join8(dir, `${month}.jsonl`);
     writeFileSync(file, `${list.map((b) => JSON.stringify(b)).join("\n")}
 `);
     written.push(file);
   }
-  if (existsSync2(dir)) {
+  if (existsSync3(dir)) {
     for (const name of readdirSync3(dir)) {
       if (!name.endsWith(".jsonl")) continue;
-      if (!months.has(name.slice(0, 7))) rmSync(join6(dir, name), { force: true });
+      if (!months.has(name.slice(0, 7))) rmSync2(join8(dir, name), { force: true });
     }
   }
   return written;
 }
 function pruneCache(cacheDir, _scanned) {
-  if (!existsSync2(cacheDir)) return;
+  if (!existsSync3(cacheDir)) return;
   const now = Date.now();
   for (const name of readdirSync3(cacheDir)) {
-    const full = join6(cacheDir, name);
+    const full = join8(cacheDir, name);
     try {
       const cached = readCache(full);
       if (!cached) continue;
-      if (!existsSync2(cached.path)) rmSync(full, { force: true });
-      else if (now - statSync3(full).mtimeMs > 180 * 24 * 3600 * 1e3) rmSync(full, { force: true });
+      if (!existsSync3(cached.path)) rmSync2(full, { force: true });
+      else if (now - statSync3(full).mtimeMs > 180 * 24 * 3600 * 1e3) rmSync2(full, { force: true });
     } catch {
-      rmSync(full, { force: true });
+      rmSync2(full, { force: true });
     }
   }
 }
@@ -871,7 +1189,7 @@ var MIME = {
 };
 var pricingCache = null;
 function pricing(dataDir) {
-  const file = join7(dataDir, "pricing-overlay.json");
+  const file = join9(dataDir, "pricing-overlay.json");
   try {
     const mtimeMs = statSync4(file).mtimeMs;
     if (pricingCache && pricingCache.mtimeMs === mtimeMs) return pricingCache.data;
@@ -953,13 +1271,13 @@ function route(pathname, query) {
 }
 function serveStatic(req, res, pathname) {
   const decoded = decodeURIComponent(pathname.split("?")[0] || "/");
-  const target = normalize2(join7(WEB_DIST, decoded === "/" ? "/index.html" : decoded));
+  const target = normalize2(join9(WEB_DIST, decoded === "/" ? "/index.html" : decoded));
   if (!target.startsWith(normalize2(WEB_DIST))) {
     res.writeHead(403).end("Forbidden");
     return;
   }
-  const file = existsSync3(target) && statSync4(target).isFile() ? target : join7(WEB_DIST, "index.html");
-  if (!existsSync3(file)) {
+  const file = existsSync4(target) && statSync4(target).isFile() ? target : join9(WEB_DIST, "index.html");
+  if (!existsSync4(file)) {
     res.writeHead(503, { "content-type": "text/plain; charset=utf-8" });
     res.end("\u524D\u7AEF\u672A\u6784\u5EFA\u3002\u5148\u8FD0\u884C: pnpm --filter @ttu/web build");
     return;
@@ -975,6 +1293,10 @@ if (process.env.TTU_SYNC === "1") {
     `\u91C7\u96C6\u5B8C\u6210: \u626B\u63CF ${result.scanned} \u4E2A\u6587\u4EF6\uFF08\u89E3\u6790 ${result.parsed}\uFF0C\u547D\u4E2D\u7F13\u5B58 ${result.skipped}\uFF09\uFF0C${result.buckets.length} \u4E2A\u6876\uFF0C\u7528\u65F6 ${Date.now() - started}ms`
   );
   if (parts.length > 0) console.log(`  ${parts.join(" \xB7 ")}`);
+  if (result.failed > 0) {
+    console.warn(`  \u26A0 ${result.failed} \u4E2A\u6587\u4EF6\u89E3\u6790\u5931\u8D25\uFF1A${result.firstError ?? "\u672A\u77E5\u539F\u56E0"}`);
+    console.warn("    \uFF08\u591A\u6570\u662F Node \u7248\u672C\u8FC7\u4F4E\uFF1Azstd \u9700\u8981 >= 22.15\uFF09");
+  }
   console.log(`  \u8F93\u51FA: ${result.queueFiles.join(", ") || "\uFF08\u65E0\u6570\u636E\uFF09"}`);
   if (process.env.TTU_SYNC_ONLY === "1") process.exit(0);
 }

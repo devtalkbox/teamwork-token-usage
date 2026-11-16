@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.5.0
+
+### Added
+
+- 新增 Kimi Code CLI 采集（`~/.kimi-code/sessions/**/wire.jsonl`）
+  - 兼容 Kimi 原生 `inputOther/inputCacheRead` 与 OpenAI 风格字段
+  - 同 `uuid` 只计一次；模型从 `config.update` 的 alias 归一
+- 新增 ZCode（GLM）采集（`~/.zcode/cli/db/db.sqlite`）
+  - 优先读 `model_usage` 表，老版本回退 `message` 表
+  - 通过 `node:sqlite` 只读打开，被占用时先复制快照
+- 采集失败不再静默：统计失败文件数并提示 Node 版本要求
+- `pnpm test:collect`：用固定样本验证 dsh/codex/kimi/zcode 的字段口径
+
 ## v0.4.0
 
 ### Added

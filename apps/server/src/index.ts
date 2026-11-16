@@ -169,6 +169,10 @@ if (process.env.TTU_SYNC === '1') {
       `${result.buckets.length} 个桶，用时 ${Date.now() - started}ms`,
   )
   if (parts.length > 0) console.log(`  ${parts.join(' · ')}`)
+  if (result.failed > 0) {
+    console.warn(`  ⚠ ${result.failed} 个文件解析失败：${result.firstError ?? '未知原因'}`)
+    console.warn('    （多数是 Node 版本过低：zstd 需要 >= 22.15）')
+  }
   console.log(`  输出: ${result.queueFiles.join(', ') || '（无数据）'}`)
   if (process.env.TTU_SYNC_ONLY === '1') process.exit(0)
 }

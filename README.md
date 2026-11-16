@@ -26,6 +26,7 @@ npx -y github:devtalkbox/teamwork-token-usage#v0.4.0 sync
 
 ```bash
 pnpm install
+pnpm test:collect   # 用假数据验证各 parser 口径
 pnpm dev
 ```
 
@@ -50,10 +51,14 @@ pnpm start
 | DeepSeek Harness | `~/.dsh/sessions/**/session.*.jsonl(.zstd)` | 多帧 zstd，需按帧切开逐帧解压 |
 | Codex | `~/.codex/sessions/**/rollout-*.jsonl(.zst)` | `token_usage_record` 是单次量；input 含缓存、output 含 reasoning，要减掉 |
 | Claude Code | `~/.claude/projects/**/*.jsonl` | 同一 message.id 可能流式出现多次，按 id 取最后一条 |
+| Kimi Code CLI | `~/.kimi-code/sessions/**/wire.jsonl` | 取 `step.end` 事件的 usage；同 uuid 只计一次 |
+| ZCode（GLM） | `~/.zcode/cli/db/db.sqlite` | 优先读 `model_usage` 表，老版本回退 `message` 表 |
 
 产出写到 `~/.ttu/queue/YYYY-MM.jsonl`（半小时桶），格式与 jusage 一致。
 老数据兼容：如果本机有 `~/.ai-usage/queue`，会一起读；**同一个 source 以我们自己采集的为准**，
 避免两套数据各算一遍。
+
+环境要求：**Node ≥ 22.15**（dsh/codex 的日志是 zstd 压缩，Node 内置解压从 22.15 才有）。
 
 价格：优先用 `~/.ai-usage/pricing-overlay.json`，没有就退回内置快照
 （`packages/core/src/pricing/builtin.ts`），所以**没装 jusage 也能算出成本**。

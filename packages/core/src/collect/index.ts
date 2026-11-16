@@ -16,11 +16,15 @@ import { bucketKey } from '../store.ts'
 import * as claude from './claude.ts'
 import * as codex from './codex.ts'
 import * as dsh from './dsh.ts'
+import * as kimi from './kimi.ts'
+import * as zcode from './zcode.ts'
 
 const SOURCES = [
   { name: dsh.SOURCE, list: dsh.listFiles, parse: dsh.parseFile },
   { name: codex.SOURCE, list: codex.listFiles, parse: codex.parseFile },
   { name: claude.SOURCE, list: claude.listFiles, parse: claude.parseFile },
+  { name: kimi.SOURCE, list: kimi.listFiles, parse: kimi.parseFile },
+  { name: zcode.SOURCE, list: zcode.listFiles, parse: zcode.parseFile },
 ]
 
 export function collectHome(): string {
@@ -40,8 +44,10 @@ export interface CollectResult {
   scanned: number
   parsed: number
   skipped: number
+  failed: number
+  firstError: string | null
   buckets: UsageBucket[]
-  bySource: Record<string, { files: number; buckets: number; tokens: number }>
+  bySource: Record<string, { files: number; buckets: number; tokens: number; failed: number }>
   queueFiles: string[]
   home: string
 }
@@ -79,6 +85,8 @@ export function collectAll(options: { force?: boolean } = {}): CollectResult {
   let scanned = 0
   let parsed = 0
   let skipped = 0
+  let failed = 0
+  let firstError: string | null = null
 
   for (const source of SOURCES) {
     let files: string[] = []
@@ -87,7 +95,7 @@ export function collectAll(options: { force?: boolean } = {}): CollectResult {
     } catch {
       files = []
     }
-    const stat = { files: 0, buckets: 0, tokens: 0 }
+    const stat = { files: 0, buckets: 0, tokens: 0, failed: 0 }
 
     for (const file of files) {
       scanned += 1
@@ -113,7 +121,10 @@ export function collectAll(options: { force?: boolean } = {}): CollectResult {
       } else {
         try {
           buckets = source.parse(file)
-        } catch {
+        } catch (error) {
+          failed += 1
+          stat.failed += 1
+          if (!firstError) firstError = error instanceof Error ? error.message : String(error)
           continue
         }
         parsed += 1
@@ -136,7 +147,7 @@ export function collectAll(options: { force?: boolean } = {}): CollectResult {
   const queueFiles = writeQueue(home, mergeBuckets(all))
   pruneCache(cacheDir, scanned)
 
-  return { scanned, parsed, skipped, buckets: all, bySource, queueFiles, home }
+  return { scanned, parsed, skipped, failed, firstError, buckets: all, bySource, queueFiles, home }
 }
 
 /**
