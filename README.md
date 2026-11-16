@@ -58,7 +58,8 @@ pnpm start
 老数据兼容：如果本机有 `~/.ai-usage/queue`，会一起读；**同一个 source 以我们自己采集的为准**，
 避免两套数据各算一遍。
 
-环境要求：**Node ≥ 22.15**（dsh/codex 的日志是 zstd 压缩，Node 内置解压从 22.15 才有）。
+环境要求：**Node ≥ 20**。dsh/codex 的日志是 zstd 压缩：Node ≥ 22.15 用内置解压，
+低于 22.15 自动退回纯 JS 的 fzstd（首次全量解析约 3 秒，之后走缓存）。
 
 价格：优先用 `~/.ai-usage/pricing-overlay.json`，没有就退回内置快照
 （`packages/core/src/pricing/builtin.ts`），所以**没装 jusage 也能算出成本**。

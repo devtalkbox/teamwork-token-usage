@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.6.1
+
+### Fixed
+
+- **Node 20 下启动即崩**：`import { zstdDecompressSync } from 'node:zlib'` 在 Node 20
+  会在模块实例化阶段抛 SyntaxError。改为命名空间导入 + 纯 JS 的 `fzstd` 兜底，
+  现在 Node 20 也能采集（首次解析慢一些，约 3 秒）
+
 ## v0.6.0
 
 ### Changed
