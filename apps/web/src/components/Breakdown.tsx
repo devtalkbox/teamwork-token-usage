@@ -87,7 +87,13 @@ export function PlatformBreakdown({ models }: { models: ModelSlice[] }) {
   )
 }
 
-export function ProjectBreakdown({ projects }: { projects: ProjectSlice[] }) {
+export function ProjectBreakdown({
+  projects,
+  modelColors,
+}: {
+  projects: ProjectSlice[]
+  modelColors: Record<string, string>
+}) {
   const [expanded, setExpanded] = useState(false)
   const shown = expanded ? projects : projects.slice(0, 5)
 
@@ -96,35 +102,67 @@ export function ProjectBreakdown({ projects }: { projects: ProjectSlice[] }) {
       <div className="card__head">
         <div>
           <h3 className="card__title">项目分布</h3>
-          <p className="card__sub">按项目比较总 Token</p>
+          <p className="card__sub">按项目比较总 Token · 鼠标悬停看模型构成</p>
         </div>
       </div>
 
       {projects.length === 0 && <p className="empty">窗口内没有数据</p>}
 
       <div className="rows rows--big">
-        {shown.map((project) => (
-          <div className="big-row" key={project.project}>
-            <div className="big-row__label">
-              <span className="folder">▤</span>
-              <div>
-                <div className="big-row__name" title={project.project}>
-                  {project.project}
-                </div>
-                <div className="big-row__meta">
-                  {project.models} 个模型 · {formatUsd(project.costUsd)}
+        {shown.map((project) => {
+          const segments = project.breakdown ?? []
+          return (
+            <div className="big-row" key={project.project}>
+              <div className="big-row__label">
+                <span className="folder">▤</span>
+                <div>
+                  <div className="big-row__name" title={project.project}>
+                    {project.project}
+                  </div>
+                  <div className="big-row__meta">
+                    {project.models} 个模型 · {formatUsd(project.costUsd)}
+                  </div>
                 </div>
               </div>
+
+              <div className="big-row__bar">
+                <div className="stack">
+                  {segments.length === 0 && <div className="seg" style={{ flexGrow: 1, background: '#eef1f6' }} />}
+                  {segments.map((seg) => {
+                    const color = modelColors[seg.model] ?? '#b7c6de'
+                    return (
+                      <div
+                        key={`${seg.source}-${seg.model}`}
+                        className="seg"
+                        style={{ flexGrow: Math.max(seg.tokens, 0.01), background: color }}
+                        title={`${seg.model} · ${formatTokens(seg.tokens)} · ${formatUsd(seg.costUsd)}`}
+                      >
+                        <div className="seg__tip">
+                          <div className="seg__tip-title">
+                            <span className="seg__tip-dot" style={{ background: color }} />
+                            {nameOf(seg.source)}
+                          </div>
+                          <div className="seg__tip-model">{seg.model}</div>
+                          <div className="seg__tip-meta">
+                            {formatTokens(seg.tokens)} · {formatUsd(seg.costUsd)}
+                          </div>
+                          <div className="seg__tip-pct">
+                            占 {project.project} 的 {seg.pct}%
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="big-row__value">
+                <div className="big-row__pct">{project.pct.toFixed(1)}%</div>
+                <div className="big-row__tokens">{formatTokens(project.tokens)}</div>
+              </div>
             </div>
-            <div className="big-row__bar">
-              <Bar pct={project.pct} tone="#2f6fed" />
-            </div>
-            <div className="big-row__value">
-              <div className="big-row__pct">{project.pct.toFixed(1)}%</div>
-              <div className="big-row__tokens">{formatTokens(project.tokens)}</div>
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {projects.length > 5 && (

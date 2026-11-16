@@ -200,34 +200,57 @@ export function aggregateModels(rows: PricedRow[], days: number): ModelSlice[] {
 }
 
 export function aggregateProjects(rows: PricedRow[], days: number): ProjectSlice[] {
-  const map = new Map<string, ProjectSlice & { modelSet: Set<string>; sourceSet: Set<string> }>()
+  type ModelBucket = { source: string; tokens: number; costUsd: number }
+  const map = new Map<
+    string,
+    {
+      project: string
+      tokens: number
+      costUsd: number
+      models: Map<string, ModelBucket>
+      sources: Set<string>
+    }
+  >()
   let total = 0
+
   for (const row of within(rows, days)) {
     total += row.tokens
-    const slice = map.get(row.project) ?? {
+    const entry = map.get(row.project) ?? {
       project: row.project,
       tokens: 0,
       costUsd: 0,
-      pct: 0,
-      models: 0,
-      sources: [],
-      modelSet: new Set<string>(),
-      sourceSet: new Set<string>(),
+      models: new Map<string, ModelBucket>(),
+      sources: new Set<string>(),
     }
-    slice.tokens += row.tokens
-    slice.costUsd += row.costUsd
-    slice.modelSet.add(row.model)
-    slice.sourceSet.add(row.source)
-    map.set(row.project, slice)
+    entry.tokens += row.tokens
+    entry.costUsd += row.costUsd
+    entry.sources.add(row.source)
+
+    const key = `${row.source}|${row.model}`
+    const model = entry.models.get(key) ?? { source: row.source, tokens: 0, costUsd: 0 }
+    model.tokens += row.tokens
+    model.costUsd += row.costUsd
+    entry.models.set(key, model)
+    map.set(row.project, entry)
   }
+
   return [...map.values()]
-    .map((slice) => ({
-      project: slice.project,
-      tokens: slice.tokens,
-      costUsd: roundCostUsd(slice.costUsd),
-      pct: pct(slice.tokens, total),
-      models: slice.modelSet.size,
-      sources: [...slice.sourceSet].sort(),
+    .map((entry) => ({
+      project: entry.project,
+      tokens: entry.tokens,
+      costUsd: roundCostUsd(entry.costUsd),
+      pct: pct(entry.tokens, total),
+      models: entry.models.size,
+      sources: [...entry.sources].sort(),
+      breakdown: [...entry.models.entries()]
+        .map(([key, v]) => ({
+          model: key.slice(key.indexOf('|') + 1),
+          source: v.source,
+          tokens: v.tokens,
+          costUsd: roundCostUsd(v.costUsd),
+          pct: pct(v.tokens, entry.tokens),
+        }))
+        .sort((a, b) => b.tokens - a.tokens),
     }))
     .sort((a, b) => b.tokens - a.tokens)
 }

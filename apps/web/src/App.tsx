@@ -8,6 +8,8 @@ import { Donut, PlatformBreakdown, ProjectBreakdown } from './components/Breakdo
 import { dayPoints, fillDayHours, hourPoints } from './chartData'
 import { formatTokens, formatUsd, shiftDate, todayISO } from './format'
 
+const MODEL_PALETTE = ['#2f6fed', '#34a853', '#f5a524', '#8b95a7', '#7f56d9']
+
 const RANGES = [
   { value: 1, label: '今天' },
   { value: 7, label: '7D' },
@@ -116,12 +118,20 @@ export default function App() {
       .sort((a, b) => b.value - a.value)
   }, [models])
 
+  /** 模型 → 颜色：和「模型分布」环形图共用一套，避免同一个模型两种颜色 */
+  const modelColors = useMemo(() => {
+    const map: Record<string, string> = {}
+    models.slice(0, 5).forEach((model, i) => {
+      map[model.model] = MODEL_PALETTE[i % MODEL_PALETTE.length]
+    })
+    return map
+  }, [models])
+
   const modelItems = useMemo(() => {
-    const palette = ['#2f6fed', '#34a853', '#f5a524', '#8b95a7', '#7f56d9']
     const top = models.slice(0, 5).map((model, i) => ({
       name: model.model,
       value: model.tokens,
-      color: palette[i % palette.length],
+      color: MODEL_PALETTE[i % MODEL_PALETTE.length],
     }))
     const rest = models.slice(5).reduce((s, m) => s + m.tokens, 0)
     if (rest > 0) top.push({ name: '其他', value: rest, color: '#cbd5e1' })
@@ -203,7 +213,7 @@ export default function App() {
 
       <div className="grid grid--2">
         <PlatformBreakdown models={models} />
-        <ProjectBreakdown projects={projects} />
+        <ProjectBreakdown projects={projects} modelColors={modelColors} />
       </div>
 
       <div className="grid grid--2">

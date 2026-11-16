@@ -410,6 +410,82 @@ body {
   color: var(--blue);
 }
 
+/* ---------- stacked bar（项目分布） ---------- */
+.stack {
+  display: flex;
+  gap: 1px;
+  height: 12px;
+  width: 100%;
+}
+
+.seg {
+  position: relative;
+  height: 100%;
+  min-width: 2px;
+  border-radius: 2px;
+  transition: filter 0.1s ease;
+}
+
+.seg:first-child {
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+}
+
+.seg:last-child {
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+}
+
+.seg:hover {
+  filter: brightness(1.08);
+}
+
+.seg__tip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  min-width: 150px;
+  padding: 8px 10px;
+  background: #fff;
+  border: 1px solid #e6eaf2;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgb(16 24 40 / 12%);
+  white-space: nowrap;
+  font-size: 11.5px;
+  line-height: 1.5;
+  pointer-events: none;
+}
+
+.seg:hover .seg__tip {
+  display: block;
+}
+
+.seg__tip-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.seg__tip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.seg__tip-model {
+  color: #5b6678;
+}
+
+.seg__tip-meta,
+.seg__tip-pct {
+  color: var(--muted);
+}
+
 /* ---------- donut ---------- */
 .donut {
   display: flex;

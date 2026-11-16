@@ -87,6 +87,15 @@ export interface ModelSlice {
   conversationCount: number
 }
 
+export interface ProjectModelSlice {
+  model: string
+  source: string
+  tokens: number
+  costUsd: number
+  /** 该项目内部的占比 */
+  pct: number
+}
+
 export interface ProjectSlice {
   project: string
   tokens: number
@@ -94,6 +103,8 @@ export interface ProjectSlice {
   pct: number
   models: number
   sources: string[]
+  /** 项目内的模型构成，前端画分段条用 */
+  breakdown: ProjectModelSlice[]
 }
 
 export interface SyncStatus {
