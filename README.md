@@ -1,25 +1,26 @@
 # teamwork-token-usage
 
-本机 AI Agent Token 用量看板。**自己扫描本地日志**（DeepSeek Harness / Codex / Claude Code），
-汇总成用量桶后渲染成和 `http://127.0.0.1:8452/dashboard` 同款的面板。
+本机 AI Agent Token 用量看板。**自己扫描本地日志**（DeepSeek Harness / Codex / Claude Code /
+Kimi Code CLI / ZCode），汇总成半小时用量桶后渲染成本地面板。
 
 **范围**：纯本地，只读本机数据，不做任何远程上报。团队同步在 v2。
 
 ## 同事直接用（不需要 clone）
 
 ```bash
-npx -y github:devtalkbox/teamwork-token-usage#v0.4.0 --open
+npx -y github:devtalkbox/teamwork-token-usage --open
 ```
 
 会先扫描本机日志，再拉起看板并打开 <http://127.0.0.1:8460/dashboard>。
 首次运行会下载仓库（约 0.6MB），之后走 npx 缓存。
+不锁版本，取默认分支最新提交。
 
 参数：`--port 8460`、`--host 127.0.0.1`、`--open`、`--no-sync`（跳过采集）。
 
 只需要采集时：
 
 ```bash
-npx -y github:devtalkbox/teamwork-token-usage#v0.4.0 sync
+npx -y github:devtalkbox/teamwork-token-usage sync
 ```
 
 ## 本地开发
@@ -44,7 +45,7 @@ pnpm start
 
 ## 数据从哪来
 
-自己扫，不需要装 jusage：
+自己扫，不需要额外安装采集工具：
 
 | 工具 | 日志位置 | 采集要点 |
 | --- | --- | --- |
@@ -54,17 +55,15 @@ pnpm start
 | Kimi Code CLI | `~/.kimi-code/sessions/**/wire.jsonl` | 取 `step.end` 事件的 usage；同 uuid 只计一次 |
 | ZCode（GLM） | `~/.zcode/cli/db/db.sqlite` | 优先读 `model_usage` 表，老版本回退 `message` 表 |
 
-产出写到 `~/.ttu/queue/YYYY-MM.jsonl`（半小时桶），格式与 jusage 一致。
-老数据兼容：如果本机有 `~/.ai-usage/queue`，会一起读；**同一个 source 以我们自己采集的为准**，
-避免两套数据各算一遍。
+产出写到 `~/.ttu/queue/YYYY-MM.jsonl`（半小时桶，按 UTC 对齐）。
 
 环境要求：**Node ≥ 20**。dsh/codex 的日志是 zstd 压缩：Node ≥ 22.15 用内置解压，
 低于 22.15 自动退回纯 JS 的 fzstd（首次全量解析约 3 秒，之后走缓存）。
 
-价格：优先用 `~/.ai-usage/pricing-overlay.json`，没有就退回内置快照
-（`packages/core/src/pricing/builtin.ts`），所以**没装 jusage 也能算出成本**。
+价格：优先读数据目录下的 `pricing-overlay.json`，没有就退回内置快照
+（`packages/core/src/pricing/builtin.ts`），所以**开箱就能算出成本**。
 
-换数据目录：`TTU_HOME=/path/to/home`；只看 jusage 的：`TTU_DATA_DIR=/path/to/data`。
+换数据目录：`TTU_HOME=/path/to/home`；读其它队列目录：`TTU_DATA_DIR=/path/to/data`。
 
 > 队列文件是**追加日志**：同一个桶会反复追写（本机实测最多重复 29 次），
 > 所以加载时必须按 `hour_start|source|model|project|collector` 去重取最后一条，
@@ -77,7 +76,7 @@ packages/core/src/
   types.ts        用量桶与 API 数据形状
   store.ts        读 queue、去重、按 mtime 缓存
   aggregate.ts    按天/小时/模型/项目聚合
-  pricing.ts      定价查表与成本计算（对齐 jusage 口径）
+  pricing.ts      定价查表与成本计算
   time.ts         本地时区切日
 
 apps/server/src/
@@ -96,7 +95,7 @@ apps/web/src/
 
 ## API
 
-与 jusage 同形，方便 v2 直接切到团队服务端：
+统一返回 `{ success, message, data }`，方便 v2 直接切到团队服务端：
 
 | 路由 | 说明 |
 | --- | --- |
@@ -107,7 +106,7 @@ apps/web/src/
 | `/functions/tud-usage-project-breakdown?days=7` | 按项目 |
 | `/functions/tud-sync-status` | 数据文件时间、桶数量、来源统计 |
 
-所有接口都支持 `&source=codex` 之类的渠道筛选，返回 `{ success, message, data }`。
+所有接口都支持 `&source=codex` 之类的渠道筛选。
 
 ## 已知边界
 
